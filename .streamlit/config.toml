@@ -1,0 +1,4 @@
+[runtime]
+# Use uma versão estável do Python
+# Python 3.11 é uma escolha segura e moderna.
+python_version = 3.11

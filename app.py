@@ -5,14 +5,27 @@ from typing import Dict, List
 from groq import Groq
 import streamlit as st
 
-# Pega a chave do Streamlit Secrets
-api_key = st.secrets.get("GROQ_API_KEY")
+# ==========================================================
+# CONFIGURAÇÃO E INICIALIZAÇÃO DO CLIENTE GROQ
+# ==========================================================
 
-if not api_key:
-    st.error("❌ A chave GROQ_API_KEY não está definida nos secrets!")
+# Tenta pegar a chave do Streamlit Secrets
+try:
+    # Acessa a chave diretamente
+    api_key = st.secrets["GROQ_API_KEY"] 
+except KeyError:
+    # Caso a chave não exista no secrets (exige que o arquivo secrets.toml esteja correto)
+    st.error("❌ A chave **GROQ_API_KEY** não está definida nos secrets do Streamlit! Verifique o arquivo `.streamlit/secrets.toml` ou a configuração de secrets na Cloud.")
     st.stop()
 
-client = Groq(api_key=api_key)
+# Tenta inicializar o cliente Groq
+try:
+    client = Groq(api_key=api_key)
+except Exception as e:
+    # Captura qualquer erro que possa ocorrer na inicialização do cliente (incluindo o TypeError)
+    st.error(f"❌ Erro ao inicializar o cliente Groq. Isso pode ser um problema de versão ou de ambiente. Detalhes do erro: {e}")
+    st.stop()
+
 
 def call_llm(prompt: str, temperature=0.1):
     response = client.chat.completions.create(
@@ -32,7 +45,12 @@ def extrair_simbolos(formula: str) -> List[str]:
 
 def validar_formula(formula: str) -> bool:
     pattern = r"[A-Z]|¬|∧|V|→|↔|\(|\)|\s"
-    return all(re.fullmatch(pattern, ch) for ch in formula)
+    # Simplifiquei esta parte assumindo que a validação original está correta
+    # return all(re.fullmatch(pattern, ch) for ch in formula)
+    
+    # Validação mais simples, apenas verifica se a fórmula contém caracteres não permitidos
+    caracteres_invalidos = re.findall(r"[^A-Z¬∧V→↔()\s]", formula)
+    return not bool(caracteres_invalidos)
 
 
 # ==========================================================
@@ -56,12 +74,16 @@ Texto: "{texto}"
 Se houver ambiguidade, mantenha a forma mais simples possível.
     """
 
+    # A função call_llm agora está disponível, garantindo que o cliente Groq foi inicializado
     formula = call_llm(prompt)
 
-    # Mantém símbolos definidos pelo usuário
+    # Mantém símbolos definidos pelo usuário (Esta lógica deve ser mantida se for necessária)
     for simb, desc in significados.items():
         if desc.lower() in texto.lower():
-            formula = formula.replace(simb, simb)
+            # A linha original era formula.replace(simb, simb), que não faz nada. 
+            # Se a intenção é preservar o símbolo, a IA deve tê-lo gerado. 
+            # Vou remover esta linha desnecessária, pois o LLM deve gerar os símbolos P, Q, R...
+            pass 
 
     return formula
 
@@ -108,10 +130,16 @@ Texto: "{texto}"
     mapeamento = {}
     for linha in linhas:
         if "=" in linha:
-            simb, desc = linha.split("=")
-            simb = simb.strip()
-            desc = desc.replace('"', "").strip()
-            mapeamento[simb] = desc
+            try:
+                simb, desc = linha.split("=", 1) # Usar 1 para garantir que a descrição possa conter "="
+                simb = simb.strip()
+                # Remove aspas duplas, simples e espaços em branco da descrição
+                desc = desc.strip().replace('"', "").replace("'", "") 
+                if simb and desc:
+                    mapeamento[simb] = desc
+            except ValueError:
+                # Ignora linhas mal formatadas
+                continue
 
     return mapeamento
 
@@ -150,15 +178,30 @@ if st.button("Gerar fórmula (NL → CPC)"):
     if texto_nl.strip() == "":
         st.warning("Digite uma frase.")
     else:
-        formula = nl_para_cpc(texto_nl, st.session_state.significados)
-        st.success("Fórmula gerada:")
-        st.code(formula, language="text")
+        # Normaliza as chaves do dicionário de significados (apenas letras maiúsculas)
+        significados_validos = {k: v for k, v in st.session_state.significados.items() if k.isupper()}
+        
+        with st.spinner("Traduzindo para CPC..."):
+            formula = nl_para_cpc(texto_nl, significados_validos)
+            st.success("Fórmula gerada:")
+            st.code(formula, language="text")
 
 if st.button("Sugerir proposições"):
-    sugestoes = sugerir_proposicoes(texto_nl)
-    st.write("Sugestões do sistema:")
-    st.json(sugestoes)
-    st.session_state.significados.update(sugestoes)
+    if texto_nl.strip() == "":
+        st.warning("Digite uma frase para sugerir proposições.")
+    else:
+        with st.spinner("Gerando sugestões..."):
+            sugestoes = sugerir_proposicoes(texto_nl)
+            
+            if sugestoes:
+                st.write("Sugestões do sistema:")
+                st.json(sugestoes)
+                
+                # Garante que apenas letras maiúsculas sejam adicionadas
+                sugestoes_validas = {k: v for k, v in sugestoes.items() if k.isupper() and len(k) == 1}
+                st.session_state.significados.update(sugestoes_validas)
+            else:
+                st.info("Nenhuma sugestão de proposição foi gerada.")
 
 
 # ==========================================================
@@ -170,8 +213,12 @@ texto_cpc = st.text_input("Digite a fórmula lógica:", "")
 
 if st.button("Gerar frase (CPC → NL)"):
     if not validar_formula(texto_cpc):
-        st.error("Fórmula inválida. Use apenas A-Z, ¬, ∧, V, →, ↔, parênteses.")
+        st.error("Fórmula inválida. Use apenas letras maiúsculas (A-Z), operadores lógicos (¬, ∧, V, →, ↔) e parênteses.")
     else:
-        frase = cpc_para_nl(texto_cpc, st.session_state.significados)
-        st.success("Frase gerada:")
-        st.write(frase)
+        # Normaliza as chaves do dicionário de significados
+        significados_validos = {k: v for k, v in st.session_state.significados.items() if k.isupper()}
+        
+        with st.spinner("Traduzindo para Linguagem Natural..."):
+            frase = cpc_para_nl(texto_cpc, significados_validos)
+            st.success("Frase gerada:")
+            st.write(frase)
