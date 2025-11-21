@@ -1,20 +1,22 @@
 import streamlit as st
 import re
 import json
-import os
 from typing import Dict, List
 from groq import Groq
+import streamlit as st
 
+# Pega a chave do Streamlit Secrets
+api_key = st.secrets.get("GROQ_API_KEY")
 
-# ==========================================================
-# CONFIGURAÇÃO DO GROQ (Llama 3.1)
-# ==========================================================
+if not api_key:
+    st.error("❌ A chave GROQ_API_KEY não está definida nos secrets!")
+    st.stop()
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+client = Groq(api_key=api_key)
 
 def call_llm(prompt: str, temperature=0.1):
     response = client.chat.completions.create(
-        model="llama-3.1-8b-instruct",
+        model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature
     )
