@@ -100,3 +100,6 @@ Melhorias:
 Criar parser sintático próprio para NL → lógica proposicional.
 Adicionar modo pedagógico, explicando cada passo da tradução.
 Treinar modelo próprio com dataset específico (NL ↔ CPC).
+
+Link do video do agente funcionando:
+https://1drv.ms/v/c/3d4921b29891711b/IQCGsTwy8UdHQol6kbGwRkzcAWFDN4oXZiHJ1DhoEpjALko
