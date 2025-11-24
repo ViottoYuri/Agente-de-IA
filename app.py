@@ -45,7 +45,6 @@ def extrair_simbolos(formula: str) -> List[str]:
 
 def validar_formula(formula: str) -> bool:
     pattern = r"[A-Z]|¬|∧|V|→|↔|\(|\)|\s"
-    # Simplifiquei esta parte assumindo que a validação original está correta
     # return all(re.fullmatch(pattern, ch) for ch in formula)
     
     # Validação mais simples, apenas verifica se a fórmula contém caracteres não permitidos
@@ -77,14 +76,10 @@ Se houver ambiguidade, mantenha a forma mais simples possível.
     # A função call_llm agora está disponível, garantindo que o cliente Groq foi inicializado
     formula = call_llm(prompt)
 
-    # Mantém símbolos definidos pelo usuário (Esta lógica deve ser mantida se for necessária)
+    #Mantém símbolos definidos pelo usuário
+    
     for simb, desc in significados.items():
         if desc.lower() in texto.lower():
-            # A linha original era formula.replace(simb, simb), que não faz nada. 
-            # Se a intenção é preservar o símbolo, a IA deve tê-lo gerado. 
-            # Vou remover esta linha desnecessária, pois o LLM deve gerar os símbolos P, Q, R...
-            pass 
-
     return formula
 
 
